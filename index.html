@@ -1,0 +1,436 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <title>Jeu Avion vs Oiseaux</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background: #87CEEB;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            user-select: none; /* Empêche la sélection de texte */
+        }
+        canvas {
+            display: block;
+        }
+        
+        /* Interface utilisateur (UI) */
+        #ui-layer {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            pointer-events: none;
+            display: flex;
+            flex-direction: column;
+            justify-content: space-between;
+            padding: 20px;
+            box-sizing: border-box;
+        }
+
+        #score-board {
+            font-size: 24px;
+            color: white;
+            font-weight: bold;
+            text-shadow: 2px 2px 0 rgba(0,0,0,0.2);
+        }
+
+        #game-over-screen {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.7);
+            color: white;
+            padding: 40px;
+            border-radius: 20px;
+            text-align: center;
+            display: none; /* Caché par défaut */
+            pointer-events: auto;
+            backdrop-filter: blur(5px);
+            border: 2px solid rgba(255,255,255,0.3);
+        }
+
+        h1 { margin: 0 0 10px 0; text-transform: uppercase; letter-spacing: 2px; color: #ff6b6b; }
+        p { margin: 10px 0; font-size: 18px; }
+        
+        button {
+            background: #4ecdc4;
+            border: none;
+            padding: 10px 20px;
+            color: white;
+            font-size: 18px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 10px;
+            transition: transform 0.1s;
+        }
+        button:hover { transform: scale(1.05); background: #45b7af; }
+
+        .controls-hint {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: rgba(255,255,255,0.8);
+            font-size: 14px;
+            text-align: center;
+        }
+        .key {
+            display: inline-block;
+            border: 1px solid white;
+            border-radius: 4px;
+            padding: 2px 6px;
+            margin: 0 2px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Interface -->
+    <div id="ui-layer">
+        <div id="score-board">SCORE: <span id="score">0</span></div>
+    </div>
+
+    <div id="game-over-screen">
+        <h1>CRASH !</h1>
+        <p>Score final : <span id="final-score">0</span></p>
+        <button onclick="resetGame()">Rejouer</button>
+    </div>
+
+    <div class="controls-hint">
+        Utilisez <span class="key">↑</span> et <span class="key">↓</span> pour esquiver les oiseaux
+    </div>
+
+    <canvas id="sky"></canvas>
+
+    <script>
+        const canvas = document.getElementById('sky');
+        const ctx = canvas.getContext('2d');
+        
+        // UI Elements
+        const scoreEl = document.getElementById('score');
+        const finalScoreEl = document.getElementById('final-score');
+        const gameOverScreen = document.getElementById('game-over-screen');
+
+        let width, height;
+        
+        // Game State
+        let gameRunning = true;
+        let score = 0;
+        let frameCount = 0;
+        
+        // Inputs
+        const keys = { ArrowUp: false, ArrowDown: false };
+
+        // Arrays
+        let clouds = [];
+        let birds = [];
+        let particles = []; 
+
+        // Configuration
+        const PLANE_X = 150; // Position X fixe de l'avion
+        let planeY = 0;
+        let planeVelocity = 0;
+        const GRAVITY = 0.0; // Pas de gravité, style arcade pur
+        const SPEED = 6; // Vitesse de déplacement vertical
+        const FRICTION = 0.9;
+
+        function resize() {
+            width = canvas.width = window.innerWidth;
+            height = canvas.height = window.innerHeight;
+            if (planeY === 0) planeY = height / 2; // Init center
+        }
+        window.addEventListener('resize', resize);
+        resize();
+
+        // Input Listeners
+        window.addEventListener('keydown', e => { if(keys.hasOwnProperty(e.key)) keys[e.key] = true; });
+        window.addEventListener('keyup', e => { if(keys.hasOwnProperty(e.key)) keys[e.key] = false; });
+
+        // --- CLASSES ---
+
+        class Cloud {
+            constructor() {
+                this.reset(true);
+            }
+            reset(randomX = false) {
+                this.x = randomX ? Math.random() * width : width + 100;
+                this.y = Math.random() * height;
+                this.z = Math.random(); 
+                this.speed = 1 + this.z * 2; 
+                this.scale = 0.5 + this.z * 1.0;
+                this.opacity = 0.4 + this.z * 0.4;
+                
+                this.puffs = [];
+                const puffCount = 3 + Math.random() * 3;
+                for(let i=0; i<puffCount; i++) {
+                    this.puffs.push({
+                        x: (Math.random() - 0.5) * 60,
+                        y: (Math.random() - 0.5) * 30,
+                        r: 20 + Math.random() * 30
+                    });
+                }
+            }
+            update() {
+                this.x -= this.speed;
+                if (this.x < -200) this.reset();
+            }
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.scale(this.scale, this.scale);
+                ctx.fillStyle = `rgba(255, 255, 255, ${this.opacity})`;
+                ctx.beginPath();
+                this.puffs.forEach(p => ctx.arc(p.x, p.y, p.r, 0, Math.PI*2));
+                ctx.fill();
+                ctx.restore();
+            }
+        }
+
+        class Bird {
+            constructor() {
+                this.width = 30;
+                this.height = 20;
+                this.x = width + 50;
+                this.y = Math.random() * (height - 100) + 50;
+                this.speed = 5 + Math.random() * 4; // Vitesse aléatoire
+                this.wingOffset = Math.random() * 10;
+            }
+            update(time) {
+                this.x -= this.speed;
+                return this.x < -50; // Return true if off screen
+            }
+            draw(time) {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                
+                // Animation des ailes
+                const flap = Math.sin((time + this.wingOffset) * 0.02) * 10;
+
+                ctx.strokeStyle = '#000';
+                ctx.lineWidth = 3;
+                ctx.lineCap = 'round';
+                ctx.beginPath();
+                // Aile gauche
+                ctx.moveTo(-15, -flap);
+                ctx.quadraticCurveTo(0, 5, 0, 0);
+                // Aile droite
+                ctx.quadraticCurveTo(0, 5, 15, -flap);
+                ctx.stroke();
+                
+                // Corps
+                ctx.beginPath();
+                ctx.fillStyle = '#000';
+                ctx.arc(0, 0, 3, 0, Math.PI*2);
+                ctx.fill();
+
+                ctx.restore();
+                
+                // Debug hitbox
+                // ctx.strokeStyle = 'red'; ctx.strokeRect(this.x - 15, this.y - 10, 30, 20);
+            }
+            // Hitbox simple
+            getRect() {
+                return { x: this.x - 15, y: this.y - 10, w: 30, h: 20 };
+            }
+        }
+
+        class Particle {
+            constructor(x, y) {
+                this.x = x;
+                this.y = y;
+                this.vx = -5 - Math.random() * 2;
+                this.vy = (Math.random() - 0.5) * 1;
+                this.life = 1.0;
+                this.decay = 0.03;
+            }
+            update() {
+                this.x += this.vx;
+                this.y += this.vy;
+                this.life -= this.decay;
+            }
+            draw() {
+                ctx.globalAlpha = Math.max(0, this.life);
+                ctx.fillStyle = 'white';
+                ctx.beginPath();
+                ctx.arc(this.x, this.y, 3 + (1-this.life)*2, 0, Math.PI * 2);
+                ctx.fill();
+                ctx.globalAlpha = 1.0;
+            }
+        }
+
+        // --- GAME FUNCTIONS ---
+
+        function init() {
+            clouds = [];
+            for(let i=0; i<12; i++) clouds.push(new Cloud());
+            // Initial plane pos
+            planeY = height / 2;
+        }
+
+        function spawnBird() {
+            // Augmenter la difficulté avec le score
+            const spawnRate = 0.015 + (score / 50000); 
+            if (Math.random() < spawnRate) {
+                birds.push(new Bird());
+            }
+        }
+
+        function checkCollision(planeRect, birdRect) {
+            return (
+                planeRect.x < birdRect.x + birdRect.w &&
+                planeRect.x + planeRect.w > birdRect.x &&
+                planeRect.y < birdRect.y + birdRect.h &&
+                planeRect.y + planeRect.h > birdRect.y
+            );
+        }
+
+        function gameOver() {
+            gameRunning = false;
+            finalScoreEl.innerText = Math.floor(score);
+            gameOverScreen.style.display = 'block';
+        }
+
+        window.resetGame = function() {
+            birds = [];
+            particles = [];
+            score = 0;
+            planeY = height / 2;
+            planeVelocity = 0;
+            gameRunning = true;
+            gameOverScreen.style.display = 'none';
+            scoreEl.innerText = '0';
+        }
+
+        // --- DRAWING ---
+
+        function drawPlane() {
+            ctx.save();
+            ctx.translate(PLANE_X, planeY);
+            
+            // Inclinaison basée sur la vitesse
+            const tilt = Math.min(Math.max(planeVelocity * 0.05, -0.5), 0.5);
+            ctx.rotate(tilt);
+
+            // Trainée blanche
+            if (gameRunning && Math.random() > 0.5) {
+                particles.push(new Particle(PLANE_X - 40, planeY + 5));
+            }
+
+            // --- DESSIN DE L'AVION (Même style que le GIF) ---
+            
+            // Aile arrière
+            ctx.fillStyle = '#cbd5e1'; 
+            ctx.beginPath();
+            ctx.moveTo(-20, 5); ctx.lineTo(-40, 25); ctx.lineTo(10, 15);
+            ctx.fill();
+
+            // Fuselage
+            ctx.fillStyle = '#ffffff';
+            ctx.beginPath();
+            ctx.moveTo(60, 10); 
+            ctx.bezierCurveTo(70, 10, 70, 0, 60, 0); // Nez
+            ctx.lineTo(-50, 0);
+            ctx.lineTo(-70, -25); ctx.lineTo(-80, -25); ctx.lineTo(-75, 0); // Queue
+            ctx.lineTo(-80, 5); ctx.lineTo(-80, 10);
+            ctx.lineTo(60, 10);
+            ctx.fill();
+
+            // Aile avant
+            ctx.fillStyle = '#e2e8f0';
+            ctx.beginPath();
+            ctx.moveTo(-10, 8); ctx.lineTo(-50, 40); ctx.lineTo(20, 8);
+            ctx.fill();
+
+            // Hublots
+            ctx.fillStyle = '#38bdf8';
+            for(let i=0; i<4; i++) {
+                ctx.beginPath();
+                ctx.arc(40 - (i * 15), -2, 3, 0, Math.PI*2);
+                ctx.fill();
+            }
+
+            ctx.restore();
+
+            // Hitbox de l'avion (plus petite que le dessin pour être gentil avec le joueur)
+            return { x: PLANE_X - 60, y: planeY - 10, w: 120, h: 20 }; 
+        }
+
+        function drawSky() {
+            const gradient = ctx.createLinearGradient(0, 0, 0, height);
+            gradient.addColorStop(0, '#00b4db');
+            gradient.addColorStop(1, '#0083b0');
+            ctx.fillStyle = gradient;
+            ctx.fillRect(0, 0, width, height);
+        }
+
+        // --- MAIN LOOP ---
+
+        function animate(time) {
+            // 1. Clear & Sky
+            ctx.clearRect(0, 0, width, height);
+            drawSky();
+
+            // 2. Clouds (Arrière-plan)
+            clouds.filter(c => c.z < 0.5).forEach(c => { if(gameRunning) c.update(); c.draw(); });
+
+            if (gameRunning) {
+                // 3. Physique Avion
+                if (keys.ArrowUp) planeVelocity -= 0.5;
+                if (keys.ArrowDown) planeVelocity += 0.5;
+                
+                planeVelocity *= FRICTION; // Ralentissement naturel
+                planeY += planeVelocity;
+
+                // Limites de l'écran
+                if (planeY < 30) { planeY = 30; planeVelocity = 0; }
+                if (planeY > height - 30) { planeY = height - 30; planeVelocity = 0; }
+
+                // 4. Gestion Oiseaux
+                spawnBird();
+                score += 1;
+                scoreEl.innerText = Math.floor(score / 10); // Score affiché
+            }
+
+            // 5. Dessin Particules
+            for (let i = particles.length - 1; i >= 0; i--) {
+                particles[i].update();
+                particles[i].draw();
+                if (particles[i].life <= 0) particles.splice(i, 1);
+            }
+
+            // 6. Dessin Avion & Collision
+            const planeRect = drawPlane();
+
+            // 7. Dessin & Collision Oiseaux
+            for (let i = birds.length - 1; i >= 0; i--) {
+                let bird = birds[i];
+                let remove = false;
+                
+                if (gameRunning) {
+                    remove = bird.update(time);
+                    if (checkCollision(planeRect, bird.getRect())) {
+                        gameOver();
+                    }
+                }
+                bird.draw(time);
+                
+                if (remove) birds.splice(i, 1);
+            }
+
+            // 8. Clouds (Premier plan)
+            clouds.filter(c => c.z >= 0.5).forEach(c => { if(gameRunning) c.update(); c.draw(); });
+
+            requestAnimationFrame(animate);
+        }
+
+        init();
+        requestAnimationFrame(animate);
+
+    </script>
+</body>
+</html>
