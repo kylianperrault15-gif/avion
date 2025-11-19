@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>Master Game Hub</title>
+    <title>Master Game Hub - Ultimate Edition</title>
     <style>
         :root {
             --primary: #4f46e5;
@@ -134,11 +134,6 @@
             transform: translateY(-5px);
         }
 
-        .game-card.locked {
-            opacity: 0.5;
-            cursor: not-allowed;
-        }
-
         .game-icon { font-size: 3rem; margin-bottom: 10px; }
         .game-title { font-size: 1.2rem; font-weight: bold; }
         .coming-soon { font-size: 0.8rem; color: #94a3b8; margin-top: 5px; }
@@ -201,6 +196,7 @@
             pointer-events: auto;
             box-shadow: 0 0 50px rgba(0,0,0,0.9);
             min-width: 300px;
+            z-index: 100;
         }
 
         /* --- LEADERBOARD STYLE --- */
@@ -269,23 +265,25 @@
                 <div class="coming-soon" style="color: #4ade80;">Prêt au décollage</div>
             </div>
             
-            <!-- JEU 2 : FISH EVOLUTION (DÉVERROUILLÉ) -->
+            <!-- JEU 2 : FISH -->
             <div class="game-card" onclick="goToNameInput('fish')">
                 <div class="game-icon">🐠</div>
                 <div class="game-title">EVOLVE OCEAN</div>
                 <div class="coming-soon" style="color: #38bdf8;">Zone inexplorée</div>
             </div>
 
-            <!-- Autres jeux verrouillés -->
-            <div class="game-card locked">
+            <!-- JEU 3 : SPACE -->
+            <div class="game-card" onclick="goToNameInput('space')">
                 <div class="game-icon">👾</div>
                 <div class="game-title">SPACE WAR</div>
-                <div class="coming-soon">En développement</div>
+                <div class="coming-soon" style="color: #a78bfa;">Invasion Imminente</div>
             </div>
-            <div class="game-card locked">
+
+            <!-- JEU 4 : RACING -->
+            <div class="game-card" onclick="goToNameInput('race')">
                 <div class="game-icon">🏎️</div>
-                <div class="game-title">RACING</div>
-                <div class="coming-soon">Verrouillé</div>
+                <div class="game-title">NEON RACER</div>
+                <div class="coming-soon" style="color: #f472b6;">Moteur Chaud</div>
             </div>
         </div>
         <button class="btn back-btn" style="margin-top: 40px;" onclick="goToWelcome()">RETOUR ACCUEIL</button>
@@ -300,7 +298,7 @@
             <input type="text" id="pilot-name" class="sci-fi-input" placeholder="JOUEUR..." maxlength="8" autocomplete="off">
         </div>
         
-        <button class="btn pulse" onclick="confirmNameAndStart()">LANCER LA SIMULATION</button>
+        <button class="btn pulse" onclick="confirmNameAndStart()">LANCER LA MISSION</button>
         <button class="btn back-btn" style="margin-top: 20px;" onclick="goToMenu()">ANNULER</button>
     </div>
 
@@ -319,21 +317,18 @@
             
             <!-- Instructions -->
             <div id="touch-hint" style="text-align: center; opacity: 0.6; font-size: 14px; margin-bottom: 10px;">
-                PC: Souris/Flèches | MOBILE: Glissez pour bouger
+                PC: Clavier/Souris | MOBILE: Tactile
             </div>
         </div>
 
-        <!-- Modal Game Over améliorée -->
+        <!-- Modal Game Over -->
         <div id="game-over-modal">
             <h2 id="go-title" style="color: #ef4444; font-size: 30px; margin: 0;">GAME OVER</h2>
             <p style="font-size: 20px; margin: 10px 0;">Score Final: <span id="final-score" style="color:white">0</span></p>
             
-            <!-- Leaderboard Box -->
             <div class="leaderboard-box">
                 <div style="font-size: 0.8rem; text-transform: uppercase; color: #64748b; margin-bottom: 5px;">Hall of Fame</div>
-                <div id="leaderboard-list">
-                    <!-- Injecté via JS -->
-                </div>
+                <div id="leaderboard-list"></div>
             </div>
 
             <button class="btn" onclick="restartGame()">RÉESSAYER</button>
@@ -345,18 +340,17 @@
     <script>
         // --- GESTION DONNÉES ET NAVIGATION ---
         let currentPlayerName = "ANONYME";
-        let selectedGame = null; // 'plane' ou 'fish'
+        let selectedGame = null; 
 
-        // Variables de session pour chaque jeu
-        let sessionBests = {
-            plane: 0,
-            fish: 0
-        };
+        // Session Best (mémoire vive)
+        let sessionBests = { plane: 0, fish: 0, space: 0, race: 0 };
         
-        // Clés de stockage différentes pour les Leaderboards
+        // Clés stockage local (persistant)
         const LB_KEYS = {
-            plane: 'skyFighterLeaderboard',
-            fish: 'evolveOceanLeaderboard'
+            plane: 'skyFighterLB',
+            fish: 'evolveOceanLB',
+            space: 'spaceWarLB',
+            race: 'neonRacerLB'
         };
 
         function getLeaderboard(gameKey) {
@@ -393,7 +387,6 @@
         
         function goToNameInput(gameName) {
             selectedGame = gameName;
-            // Pré-remplir si déjà défini
             document.getElementById('pilot-name').value = currentPlayerName !== "ANONYME" ? currentPlayerName : "";
             showScreen('screen-name-input');
         }
@@ -405,7 +398,6 @@
             } else {
                 currentPlayerName = "JOUEUR-" + Math.floor(Math.random()*100);
             }
-            
             showScreen('screen-game');
             launchSelectedGame();
         }
@@ -413,36 +405,37 @@
         function launchSelectedGame() {
             if (selectedGame === 'plane') initPlaneGame();
             else if (selectedGame === 'fish') initFishGame();
+            else if (selectedGame === 'space') initSpaceGame();
+            else if (selectedGame === 'race') initRaceGame();
+        }
+
+        function stopCurrentGame() {
+            if (selectedGame === 'plane') stopPlaneGame();
+            else if (selectedGame === 'fish') stopFishGame();
+            else if (selectedGame === 'space') stopSpaceGame();
+            else if (selectedGame === 'race') stopRaceGame();
         }
 
         function stopAndReturnToMenu() {
-            if (selectedGame === 'plane') stopPlaneGame();
-            else if (selectedGame === 'fish') stopFishGame();
+            stopCurrentGame();
             showScreen('screen-menu');
         }
 
         function restartGame() {
-            if (selectedGame === 'plane') initPlaneGame();
-            else if (selectedGame === 'fish') initFishGame();
+            launchSelectedGame();
         }
 
         function handleGameOver(score, title = "GAME OVER") {
             const finalScore = Math.floor(score);
-            
-            // Update Session Best
             if (finalScore > sessionBests[selectedGame]) {
                 sessionBests[selectedGame] = finalScore;
             }
-
-            // Update Persistent Leaderboard
             saveToLeaderboard(selectedGame, currentPlayerName, finalScore);
 
-            // UI Update
             document.getElementById('go-title').innerText = title;
             document.getElementById('final-score').innerText = finalScore;
             document.getElementById('best-score-display').innerText = 'SESSION BEST: ' + sessionBests[selectedGame];
 
-            // Render Leaderboard
             const lb = getLeaderboard(selectedGame);
             let htmlHTML = '';
             if (lb.length === 0) {
@@ -469,39 +462,41 @@
         const ctx = canvas.getContext('2d');
         let animationId;
         let width, height;
-        const keys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false };
-        
-        // Souris pour le jeu de poisson
+        const keys = { ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false, Space: false };
         let mouseX = 0;
         let mouseY = 0;
+        let isTouching = false;
+        let touchX = 0; 
+        let touchY = 0;
 
-        window.addEventListener('keydown', e => keys[e.key] = true);
-        window.addEventListener('keyup', e => keys[e.key] = false);
+        window.addEventListener('keydown', e => {
+            if(e.code === 'Space') keys.Space = true;
+            if(keys.hasOwnProperty(e.key)) keys[e.key] = true;
+        });
+        window.addEventListener('keyup', e => {
+            if(e.code === 'Space') keys.Space = false;
+            if(keys.hasOwnProperty(e.key)) keys[e.key] = false;
+        });
         window.addEventListener('mousemove', e => {
             mouseX = e.clientX;
             mouseY = e.clientY;
         });
 
-        // Gestion tactile unifiée
         canvas.addEventListener('touchstart', handleTouch, {passive: false});
         canvas.addEventListener('touchmove', handleTouch, {passive: false});
-        
-        // Variables globales pour le touch
-        let touchX = null;
-        let touchY = null;
-        let isTouching = false;
+        canvas.addEventListener('touchend', () => { isTouching = false; keys.Space = false; });
 
         function handleTouch(e) {
             e.preventDefault();
+            isTouching = true;
+            keys.Space = true; // Auto fire for games that need it
             const touch = e.touches[0];
             const rect = canvas.getBoundingClientRect();
-            touchX = touch.clientX - rect.top; // Pour l'avion (Y only logic)
+            touchX = touch.clientX - rect.top;
             touchY = touch.clientY - rect.top;
-            mouseX = touch.clientX; // Pour le poisson
+            mouseX = touch.clientX;
             mouseY = touch.clientY;
-            isTouching = true;
         }
-        canvas.addEventListener('touchend', () => isTouching = false);
 
         function resize() {
             width = canvas.width = window.innerWidth;
@@ -513,7 +508,6 @@
         // =====================================================
         // === JEU 1 : SKY FIGHTER (AVION) =====================
         // =====================================================
-
         let planeGameActive = false;
         let planeScore = 0;
         let planeFrame = 0;
@@ -530,58 +524,36 @@
             planeObj.velocity = 0;
             pClouds = []; pBirds = []; pParticles = [];
             for(let i=0; i<15; i++) pClouds.push(new Cloud(true));
-
-            document.getElementById('game-over-modal').style.display = 'none';
-            document.getElementById('score-display').innerText = 'SCORE: 0';
-            document.getElementById('best-score-display').innerText = 'SESSION BEST: ' + sessionBests.plane;
-            
+            resetUI(sessionBests.plane, "PC: Flèches Haut/Bas | MOBILE: Glisser");
             animatePlane();
         }
-
-        function stopPlaneGame() {
-            planeGameActive = false;
-            cancelAnimationFrame(animationId);
-        }
+        function stopPlaneGame() { planeGameActive = false; cancelAnimationFrame(animationId); }
 
         function animatePlane(time) {
             if (!planeGameActive) return;
-
             ctx.clearRect(0, 0, width, height);
-
-            // Ciel
             const skyGrad = ctx.createLinearGradient(0, 0, 0, height);
-            skyGrad.addColorStop(0, '#3b82f6');
-            skyGrad.addColorStop(1, '#60a5fa');
-            ctx.fillStyle = skyGrad;
-            ctx.fillRect(0, 0, width, height);
-
-            // Nuages
+            skyGrad.addColorStop(0, '#3b82f6'); skyGrad.addColorStop(1, '#60a5fa');
+            ctx.fillStyle = skyGrad; ctx.fillRect(0, 0, width, height);
             pClouds.forEach(c => { c.update(planeSpeed); c.draw(); });
 
-            // Physique
             if (isTouching) {
-                // Mode Mobile (touchY set in handleTouch, ici on utilise touchY comme targetY relatif au canvas si besoin, mais simplifions)
-                // La logique d'origine utilisait touch.clientY direct.
-                let diff = (touchY || height/2) - planeObj.y; // touchY est mis à jour par handleTouch
+                let diff = (touchY || height/2) - planeObj.y;
                 planeObj.velocity = diff * 0.08;
             } else {
                 if (keys.ArrowUp) planeObj.velocity -= 0.8;
                 if (keys.ArrowDown) planeObj.velocity += 0.8;
                 planeObj.velocity *= 0.92;
             }
-
             planeObj.y += planeObj.velocity;
             if (planeObj.y < 40) { planeObj.y = 40; planeObj.velocity = 0; }
             if (planeObj.y > height - 40) { planeObj.y = height - 40; planeObj.velocity = 0; }
-            
             const tilt = Math.min(Math.max(planeObj.velocity * 0.03, -0.6), 0.6);
 
-            // Particules
             for (let i = pParticles.length - 1; i >= 0; i--) {
                 let p = pParticles[i];
                 p.x -= 6; p.y += p.v; p.life -= 0.05;
-                ctx.globalAlpha = Math.max(0, p.life);
-                ctx.fillStyle = 'white';
+                ctx.globalAlpha = Math.max(0, p.life); ctx.fillStyle = 'white';
                 ctx.beginPath(); ctx.arc(p.x, p.y, 2 + (1-p.life)*3, 0, Math.PI*2); ctx.fill();
                 ctx.globalAlpha = 1;
                 if(p.life <= 0) pParticles.splice(i, 1);
@@ -589,41 +561,358 @@
 
             drawPlayerPlane(120, planeObj.y, tilt);
 
-            // Ennemis
             planeFrame++;
-            if (planeFrame % Math.max(20, 60 - Math.floor(planeScore/500)) === 0) {
-                pBirds.push(new Bird(planeSpeed));
-            }
-
-            const planeRect = { x: 80, y: planeObj.y - 15, w: 90, h: 30 }; // Hitbox ajustée
+            if (planeFrame % Math.max(20, 60 - Math.floor(planeScore/500)) === 0) pBirds.push(new Bird(planeSpeed));
+            const planeRect = { x: 80, y: planeObj.y - 15, w: 90, h: 30 };
 
             for (let i = pBirds.length - 1; i >= 0; i--) {
                 let b = pBirds[i];
                 let remove = b.update();
                 b.draw(time || 0);
-
                 const birdRect = b.getRect();
-                if (
-                    planeRect.x < birdRect.x + birdRect.w &&
-                    planeRect.x + planeRect.w > birdRect.x &&
-                    planeRect.y < birdRect.y + birdRect.h &&
-                    planeRect.y + planeRect.h > birdRect.y
-                ) {
+                if (rectIntersect(planeRect, birdRect)) {
                     planeGameActive = false;
                     handleGameOver(planeScore, "CRASH AÉRIEN");
                     return;
                 }
                 if (remove) pBirds.splice(i, 1);
             }
-
             planeScore += 1 + (planeSpeed * 0.1);
             planeSpeed = 1 + (planeScore / 2000);
-            document.getElementById('score-display').innerText = 'SCORE: ' + Math.floor(planeScore);
-            
+            updateScoreUI(planeScore);
             animationId = requestAnimationFrame(animatePlane);
         }
 
-        // Classes Plane Game
+        // =====================================================
+        // === JEU 2 : EVOLVE OCEAN (POISSON) ==================
+        // =====================================================
+        let fishGameActive = false;
+        let fishScore = 0;
+        let fishPlayer = { x: 0, y: 0, radius: 10, angle: 0 };
+        let foods = [];
+        let enemies = [];
+        let bubbles = [];
+
+        function initFishGame() {
+            resize();
+            fishGameActive = true;
+            fishScore = 0;
+            fishPlayer = { x: width / 2, y: height / 2, radius: 10, angle: 0 };
+            foods = []; enemies = []; bubbles = [];
+            for(let i=0; i<20; i++) bubbles.push(new Bubble());
+            resetUI(sessionBests.fish, "PC: Souris | MOBILE: Glisser");
+            animateFish();
+        }
+        function stopFishGame() { fishGameActive = false; cancelAnimationFrame(animationId); }
+
+        function animateFish(time) {
+            if (!fishGameActive) return;
+            ctx.clearRect(0, 0, width, height);
+            const oceanGrad = ctx.createLinearGradient(0, 0, 0, height);
+            oceanGrad.addColorStop(0, '#0f172a'); oceanGrad.addColorStop(1, '#1e3a8a');
+            ctx.fillStyle = oceanGrad; ctx.fillRect(0, 0, width, height);
+            bubbles.forEach(b => { b.update(); b.draw(); });
+
+            let dx = mouseX - fishPlayer.x;
+            let dy = mouseY - fishPlayer.y;
+            let dist = Math.sqrt(dx*dx + dy*dy);
+            let speed = 3 + (50 / (fishPlayer.radius + 10)); 
+            if (dist > 5) {
+                fishPlayer.angle = Math.atan2(dy, dx);
+                fishPlayer.x += (dx / dist) * speed;
+                fishPlayer.y += (dy / dist) * speed;
+            }
+            drawFish(fishPlayer.x, fishPlayer.y, fishPlayer.radius, fishPlayer.angle, true, time);
+
+            if (foods.length < 30 && Math.random() < 0.1) foods.push(new Plankton());
+            for (let i = foods.length - 1; i >= 0; i--) {
+                let f = foods[i];
+                f.draw();
+                if (Math.hypot(f.x - fishPlayer.x, f.y - fishPlayer.y) < fishPlayer.radius + f.size) {
+                    fishPlayer.radius += 0.2; fishScore += 10;
+                    foods.splice(i, 1);
+                }
+            }
+
+            if (enemies.length < 10 && Math.random() < 0.02) enemies.push(new EnemyFish(fishPlayer.radius));
+            for (let i = enemies.length - 1; i >= 0; i--) {
+                let e = enemies[i];
+                e.update();
+                ctx.strokeStyle = (fishPlayer.radius > e.radius * 1.1) ? 'rgba(74, 222, 128, 0.3)' : 'rgba(239, 68, 68, 0.3)';
+                ctx.lineWidth = 2; ctx.beginPath(); ctx.arc(e.x, e.y, e.radius + 10, 0, Math.PI*2); ctx.stroke();
+                drawFish(e.x, e.y, e.radius, e.angle, false, time, e.type);
+
+                if (Math.hypot(e.x - fishPlayer.x, e.y - fishPlayer.y) < fishPlayer.radius + e.radius * 0.8) {
+                    if (fishPlayer.radius > e.radius * 1.1) {
+                        fishPlayer.radius += e.radius * 0.1; fishScore += Math.floor(e.radius * 10);
+                        enemies.splice(i, 1);
+                    } else {
+                        fishGameActive = false;
+                        handleGameOver(fishScore, "MANGÉ TOUT CRU");
+                        return;
+                    }
+                }
+                if (e.x < -200 || e.x > width + 200) enemies.splice(i, 1);
+            }
+            updateScoreUI(fishScore);
+            animationId = requestAnimationFrame(animateFish);
+        }
+
+        // =====================================================
+        // === JEU 3 : SPACE WAR (SHOOT'EM UP) =================
+        // =====================================================
+        let spaceActive = false;
+        let spaceScore = 0;
+        let shipX = 0;
+        let bullets = [];
+        let aliens = [];
+        let lastShot = 0;
+        let stars = [];
+
+        function initSpaceGame() {
+            resize();
+            spaceActive = true;
+            spaceScore = 0;
+            shipX = width / 2;
+            bullets = [];
+            aliens = [];
+            stars = [];
+            for(let i=0; i<50; i++) stars.push({x: Math.random()*width, y: Math.random()*height, s: Math.random()*2});
+            resetUI(sessionBests.space, "PC: Flèches + Espace | MOBILE: Toucher + Maintenir");
+            animateSpace();
+        }
+        function stopSpaceGame() { spaceActive = false; cancelAnimationFrame(animationId); }
+
+        function animateSpace(time) {
+            if(!spaceActive) return;
+            ctx.clearRect(0,0,width,height);
+            
+            // Background Space
+            ctx.fillStyle = 'black'; ctx.fillRect(0,0,width,height);
+            ctx.fillStyle = 'white';
+            stars.forEach(s => {
+                s.y += s.s;
+                if(s.y > height) s.y = 0;
+                ctx.fillRect(s.x, s.y, s.s, s.s);
+            });
+
+            // Ship Movement
+            if(isTouching) {
+                shipX += (mouseX - shipX) * 0.2;
+            } else {
+                if(keys.ArrowLeft) shipX -= 7;
+                if(keys.ArrowRight) shipX += 7;
+            }
+            shipX = Math.max(20, Math.min(width-20, shipX));
+
+            // Shooting
+            if((keys.Space || isTouching) && time - lastShot > 200) {
+                bullets.push({x: shipX, y: height - 80});
+                lastShot = time;
+            }
+
+            // Draw Ship
+            ctx.fillStyle = '#a78bfa';
+            ctx.beginPath();
+            ctx.moveTo(shipX, height-80);
+            ctx.lineTo(shipX-20, height-40);
+            ctx.lineTo(shipX+20, height-40);
+            ctx.fill();
+            // Engine flame
+            ctx.fillStyle = '#f59e0b';
+            ctx.beginPath(); ctx.moveTo(shipX-10, height-40); ctx.lineTo(shipX, height-25); ctx.lineTo(shipX+10, height-40); ctx.fill();
+
+            // Bullets
+            ctx.fillStyle = '#ef4444';
+            for(let i=bullets.length-1; i>=0; i--) {
+                let b = bullets[i];
+                b.y -= 10;
+                ctx.fillRect(b.x-2, b.y, 4, 15);
+                if(b.y < 0) bullets.splice(i, 1);
+            }
+
+            // Aliens
+            if(Math.random() < 0.03 + (spaceScore/10000)) {
+                aliens.push({
+                    x: Math.random()*(width-40) + 20,
+                    y: -40,
+                    w: 40, h: 30,
+                    hp: 1 + Math.floor(spaceScore/500)
+                });
+            }
+
+            for(let i=aliens.length-1; i>=0; i--) {
+                let a = aliens[i];
+                a.y += 2 + (spaceScore/2000);
+                a.x += Math.sin(a.y * 0.05) * 2; // Zigzag
+
+                // Draw Alien (Pixel art simple)
+                ctx.fillStyle = '#34d399';
+                ctx.fillRect(a.x - a.w/2, a.y, a.w, a.h);
+                ctx.fillStyle = 'black'; // Eyes
+                ctx.fillRect(a.x - 10, a.y + 10, 5, 5);
+                ctx.fillRect(a.x + 5, a.y + 10, 5, 5);
+
+                // Collision Bullet-Alien
+                let hit = false;
+                for(let j=bullets.length-1; j>=0; j--) {
+                    let b = bullets[j];
+                    if(b.x > a.x - a.w/2 && b.x < a.x + a.w/2 && b.y < a.y + a.h && b.y > a.y) {
+                        bullets.splice(j, 1);
+                        a.hp--;
+                        if(a.hp <= 0) {
+                            aliens.splice(i, 1);
+                            spaceScore += 50;
+                            hit = true;
+                        }
+                        break;
+                    }
+                }
+
+                if(!hit) {
+                    // Collision Alien-Ship
+                    if(a.y + a.h > height - 60 && Math.abs(a.x - shipX) < 40) {
+                        spaceActive = false;
+                        handleGameOver(spaceScore, "VAISSEAU DÉTRUIT");
+                        return;
+                    }
+                    if(a.y > height) {
+                        aliens.splice(i, 1); // Alien passé = pas game over mais score perdu?
+                        // spaceScore -= 10;
+                    }
+                }
+            }
+            updateScoreUI(spaceScore);
+            animationId = requestAnimationFrame(animateSpace);
+        }
+
+        // =====================================================
+        // === JEU 4 : NEON RACING (TOP DOWN) ==================
+        // =====================================================
+        let raceActive = false;
+        let raceScore = 0;
+        let carX = 0;
+        let roadOffset = 0;
+        let raceSpeed = 10;
+        let obstacles = [];
+
+        function initRaceGame() {
+            resize();
+            raceActive = true;
+            raceScore = 0;
+            carX = width / 2;
+            obstacles = [];
+            raceSpeed = 10;
+            resetUI(sessionBests.race, "PC: Gauche/Droite | MOBILE: Glisser");
+            animateRace();
+        }
+        function stopRaceGame() { raceActive = false; cancelAnimationFrame(animationId); }
+
+        function animateRace(time) {
+            if(!raceActive) return;
+            ctx.clearRect(0,0,width,height);
+
+            // Grass
+            ctx.fillStyle = '#064e3b'; ctx.fillRect(0,0,width,height);
+            
+            // Road
+            let roadW = Math.min(600, width * 0.9);
+            let roadX = (width - roadW) / 2;
+            ctx.fillStyle = '#334155'; ctx.fillRect(roadX, 0, roadW, height);
+            
+            // Road Lines
+            ctx.strokeStyle = '#fcd34d'; ctx.lineWidth = 8; ctx.setLineDash([40, 40]);
+            ctx.lineDashOffset = -roadOffset;
+            ctx.beginPath(); ctx.moveTo(width/2, 0); ctx.lineTo(width/2, height); ctx.stroke();
+            ctx.setLineDash([]);
+            
+            // Borders
+            ctx.fillStyle = '#ef4444'; ctx.fillRect(roadX-10, 0, 10, height);
+            ctx.fillStyle = '#ef4444'; ctx.fillRect(roadX+roadW, 0, 10, height);
+
+            roadOffset += raceSpeed;
+
+            // Player Car Control
+            if(isTouching) {
+                carX += (mouseX - carX) * 0.2;
+            } else {
+                if(keys.ArrowLeft) carX -= 8;
+                if(keys.ArrowRight) carX += 8;
+            }
+            
+            // Bounds
+            if(carX < roadX + 30) carX = roadX + 30;
+            if(carX > roadX + roadW - 30) carX = roadX + roadW - 30;
+
+            // Draw Car
+            ctx.fillStyle = '#d946ef'; // Pink neon
+            ctx.shadowBlur = 20; ctx.shadowColor = '#d946ef';
+            ctx.fillRect(carX - 20, height - 120, 40, 70);
+            ctx.shadowBlur = 0;
+            // Lights
+            ctx.fillStyle = '#fef08a'; ctx.fillRect(carX - 18, height - 120, 10, 5); ctx.fillRect(carX + 8, height - 120, 10, 5);
+            ctx.fillStyle = '#be185d'; ctx.fillRect(carX - 18, height - 55, 10, 3); ctx.fillRect(carX + 8, height - 55, 10, 3);
+
+            // Obstacles
+            if(Math.random() < 0.02 + (raceScore/50000)) {
+                obstacles.push({
+                    x: roadX + Math.random() * (roadW - 60) + 30,
+                    y: -100,
+                    type: Math.random() > 0.5 ? 'rock' : 'car'
+                });
+            }
+
+            for(let i=obstacles.length-1; i>=0; i--) {
+                let o = obstacles[i];
+                let relSpeed = (o.type === 'car') ? raceSpeed - 5 : raceSpeed; // Cars move, rocks static
+                o.y += relSpeed;
+
+                if(o.type === 'rock') {
+                    ctx.fillStyle = '#475569';
+                    ctx.beginPath(); ctx.arc(o.x, o.y, 25, 0, Math.PI*2); ctx.fill();
+                } else {
+                    ctx.fillStyle = '#3b82f6';
+                    ctx.fillRect(o.x-20, o.y-35, 40, 70);
+                }
+
+                // Collision
+                if(o.y > height - 140 && o.y < height - 40 && Math.abs(o.x - carX) < 45) {
+                    raceActive = false;
+                    handleGameOver(raceScore, "ACCIDENT DE LA ROUTE");
+                    return;
+                }
+
+                if(o.y > height + 50) {
+                    obstacles.splice(i, 1);
+                    raceScore += 100;
+                }
+            }
+
+            raceScore += 1; // Survival score
+            raceSpeed = 10 + (raceScore / 1000);
+            updateScoreUI(raceScore);
+            animationId = requestAnimationFrame(animateRace);
+        }
+
+
+        // --- HELPERS UTILS ---
+        
+        function resetUI(bestScore, hint) {
+            document.getElementById('game-over-modal').style.display = 'none';
+            document.getElementById('score-display').innerText = 'SCORE: 0';
+            document.getElementById('best-score-display').innerText = 'SESSION BEST: ' + bestScore;
+            document.getElementById('touch-hint').innerText = hint;
+        }
+
+        function updateScoreUI(sc) {
+            document.getElementById('score-display').innerText = 'SCORE: ' + Math.floor(sc);
+        }
+
+        function rectIntersect(r1, r2) {
+            return !(r2.x > r1.x + r1.w || r2.x + r2.w < r1.x || r2.y > r1.y + r1.h || r2.y + r2.h < r1.y);
+        }
+
+        // Classes du Jeu Avion
         class Cloud {
             constructor(randomX = false) {
                 this.x = randomX ? Math.random() * width : width + 100;
@@ -633,62 +922,39 @@
             }
             update(spd) {
                 this.x -= (2 + this.z * 3) * spd;
-                if (this.x < -200) {
-                    this.x = width + 100;
-                    this.y = Math.random() * height;
-                }
+                if (this.x < -200) { this.x = width + 100; this.y = Math.random() * height; }
             }
             draw() {
                 ctx.fillStyle = `rgba(255, 255, 255, ${0.2 + this.z * 0.5})`;
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
                 ctx.arc(this.x + this.size*0.7, this.y - this.size*0.5, this.size*0.8, 0, Math.PI * 2);
                 ctx.arc(this.x + this.size*1.2, this.y + this.size*0.2, this.size*0.6, 0, Math.PI * 2);
                 ctx.fill();
             }
         }
-
         class Bird {
             constructor(speedMult) {
-                this.x = width + 50;
-                this.y = Math.random() * (height - 100) + 50;
-                this.speed = (5 + Math.random() * 5) * speedMult;
-                this.flapOffset = Math.random() * 100;
+                this.x = width + 50; this.y = Math.random() * (height - 100) + 50;
+                this.speed = (5 + Math.random() * 5) * speedMult; this.flapOffset = Math.random() * 100;
             }
-            update() {
-                this.x -= this.speed;
-                return this.x < -50;
-            }
+            update() { this.x -= this.speed; return this.x < -50; }
             draw(time) {
                 const flap = Math.sin((time + this.flapOffset) * 0.01) * 10;
-                ctx.fillStyle = '#1e293b';
-                ctx.save();
-                ctx.translate(this.x, this.y);
+                ctx.fillStyle = '#1e293b'; ctx.save(); ctx.translate(this.x, this.y);
                 ctx.beginPath(); ctx.ellipse(0, 0, 15, 8, 0, 0, Math.PI * 2); ctx.fill();
                 ctx.beginPath(); ctx.moveTo(-5, -5); ctx.lineTo(0, -15 - flap); ctx.lineTo(5, -5); ctx.fill();
-                ctx.fillStyle = 'red'; ctx.beginPath(); ctx.arc(-8, -2, 2, 0, Math.PI * 2); ctx.fill();
-                ctx.restore();
+                ctx.fillStyle = 'red'; ctx.beginPath(); ctx.arc(-8, -2, 2, 0, Math.PI * 2); ctx.fill(); ctx.restore();
             }
             getRect() { return { x: this.x - 10, y: this.y - 10, w: 20, h: 20 }; }
         }
-
         function drawPlayerPlane(x, y, tilt) {
-            ctx.save();
-            ctx.translate(x, y);
-            ctx.rotate(tilt);
+            ctx.save(); ctx.translate(x, y); ctx.rotate(tilt);
             if (Math.random() > 0.5) pParticles.push({x: x - 40, y: y, life: 1, v: (Math.random()-0.5)});
-            
-            // Design Avion
-            ctx.fillStyle = '#475569';
-            ctx.beginPath(); ctx.moveTo(-20, 5); ctx.lineTo(-40, 20); ctx.lineTo(-10, 10); ctx.fill();
-            ctx.fillStyle = '#f59e0b';
-            ctx.beginPath(); ctx.arc(-35, 2, 5, 0, Math.PI*2); ctx.fill();
-            ctx.fillStyle = '#ef4444';
-            ctx.beginPath(); ctx.arc(-35, 2, 3, 0, Math.PI*2); ctx.fill();
-            const grad = ctx.createLinearGradient(-40, 0, 60, 0);
-            grad.addColorStop(0, '#cbd5e1'); grad.addColorStop(1, '#f8fafc');
-            ctx.fillStyle = grad;
-            ctx.beginPath(); ctx.moveTo(60, 5); ctx.lineTo(60, -2); ctx.quadraticCurveTo(40, -12, 10, -15);
+            ctx.fillStyle = '#475569'; ctx.beginPath(); ctx.moveTo(-20, 5); ctx.lineTo(-40, 20); ctx.lineTo(-10, 10); ctx.fill();
+            ctx.fillStyle = '#f59e0b'; ctx.beginPath(); ctx.arc(-35, 2, 5, 0, Math.PI*2); ctx.fill();
+            ctx.fillStyle = '#ef4444'; ctx.beginPath(); ctx.arc(-35, 2, 3, 0, Math.PI*2); ctx.fill();
+            const grad = ctx.createLinearGradient(-40, 0, 60, 0); grad.addColorStop(0, '#cbd5e1'); grad.addColorStop(1, '#f8fafc');
+            ctx.fillStyle = grad; ctx.beginPath(); ctx.moveTo(60, 5); ctx.lineTo(60, -2); ctx.quadraticCurveTo(40, -12, 10, -15);
             ctx.lineTo(-40, -15); ctx.lineTo(-50, -25); ctx.lineTo(-60, -25); ctx.lineTo(-55, 0); ctx.lineTo(-55, 10); ctx.lineTo(30, 12); ctx.closePath(); ctx.fill();
             ctx.fillStyle = '#38bdf8'; ctx.beginPath(); ctx.moveTo(10, -15); ctx.lineTo(35, -8); ctx.lineTo(35, -14); ctx.closePath(); ctx.fill();
             ctx.fillStyle = '#94a3b8'; ctx.beginPath(); ctx.moveTo(0, 0); ctx.lineTo(-30, 40); ctx.lineTo(20, 5); ctx.fill();
@@ -696,277 +962,49 @@
             ctx.restore();
         }
 
-        // =====================================================
-        // === JEU 2 : EVOLVE OCEAN (POISSON) ==================
-        // =====================================================
-
-        let fishGameActive = false;
-        let fishScore = 0; // Equivalent à la masse/taille
-        let fishPlayer = { x: 0, y: 0, radius: 10, angle: 0 };
-        let foods = [];
-        let enemies = [];
-        let bubbles = [];
-
-        function initFishGame() {
-            resize();
-            fishGameActive = true;
-            fishScore = 0; // Score = Masse gagnée
-            
-            // Init Player
-            fishPlayer.x = width / 2;
-            fishPlayer.y = height / 2;
-            fishPlayer.radius = 10; // Tout petit au début
-            fishPlayer.angle = 0;
-            
-            foods = [];
-            enemies = [];
-            bubbles = [];
-
-            // Init bubbles
-            for(let i=0; i<20; i++) bubbles.push(new Bubble());
-
-            document.getElementById('game-over-modal').style.display = 'none';
-            document.getElementById('score-display').innerText = 'MASSE: 10';
-            document.getElementById('best-score-display').innerText = 'SESSION BEST: ' + sessionBests.fish;
-            
-            animateFish();
-        }
-
-        function stopFishGame() {
-            fishGameActive = false;
-            cancelAnimationFrame(animationId);
-        }
-
-        function animateFish(time) {
-            if (!fishGameActive) return;
-
-            ctx.clearRect(0, 0, width, height);
-
-            // Fond Océan
-            const oceanGrad = ctx.createLinearGradient(0, 0, 0, height);
-            oceanGrad.addColorStop(0, '#0f172a'); // Surface sombre
-            oceanGrad.addColorStop(1, '#1e3a8a'); // Profondeur
-            ctx.fillStyle = oceanGrad;
-            ctx.fillRect(0, 0, width, height);
-
-            // Bulles décoratives
-            bubbles.forEach(b => { b.update(); b.draw(); });
-
-            // 1. GESTION JOUEUR
-            // Mouvement fluide vers la souris
-            let dx = mouseX - fishPlayer.x;
-            let dy = mouseY - fishPlayer.y;
-            let dist = Math.sqrt(dx*dx + dy*dy);
-            
-            // Vitesse diminue quand on est gros
-            let speed = 3 + (50 / (fishPlayer.radius + 10)); 
-            
-            if (dist > 5) {
-                fishPlayer.angle = Math.atan2(dy, dx);
-                fishPlayer.x += (dx / dist) * speed;
-                fishPlayer.y += (dy / dist) * speed;
-            }
-
-            drawFish(fishPlayer.x, fishPlayer.y, fishPlayer.radius, fishPlayer.angle, true, time);
-
-            // 2. NOURRITURE (PLANCTON)
-            if (foods.length < 30) {
-                if (Math.random() < 0.1) foods.push(new Plankton());
-            }
-
-            for (let i = foods.length - 1; i >= 0; i--) {
-                let f = foods[i];
-                f.draw();
-                // Collision Manger
-                let d = Math.hypot(f.x - fishPlayer.x, f.y - fishPlayer.y);
-                if (d < fishPlayer.radius + f.size) {
-                    fishPlayer.radius += 0.2; // Grandit doucement
-                    fishScore += 10;
-                    foods.splice(i, 1);
-                }
-            }
-
-            // 3. ENNEMIS / PROIES
-            if (enemies.length < 10) {
-                if (Math.random() < 0.02) enemies.push(new EnemyFish(fishPlayer.radius));
-            }
-
-            for (let i = enemies.length - 1; i >= 0; i--) {
-                let e = enemies[i];
-                e.update();
-                
-                // Cercle indicateur de danger
-                // Vert = Mangeable, Rouge = Danger
-                ctx.strokeStyle = (fishPlayer.radius > e.radius * 1.1) ? 'rgba(74, 222, 128, 0.3)' : 'rgba(239, 68, 68, 0.3)';
-                ctx.lineWidth = 2;
-                ctx.beginPath();
-                ctx.arc(e.x, e.y, e.radius + 10, 0, Math.PI*2);
-                ctx.stroke();
-
-                drawFish(e.x, e.y, e.radius, e.angle, false, time, e.type);
-
-                // Collision
-                let d = Math.hypot(e.x - fishPlayer.x, e.y - fishPlayer.y);
-                if (d < fishPlayer.radius + e.radius * 0.8) { // Hitbox un peu indulgente
-                    if (fishPlayer.radius > e.radius * 1.1) {
-                        // On mange le poisson
-                        fishPlayer.radius += e.radius * 0.1; // Gros gain
-                        fishScore += Math.floor(e.radius * 10);
-                        enemies.splice(i, 1);
-                        // Petit effet visuel (cercle blanc)
-                        ctx.save();
-                        ctx.strokeStyle = 'white';
-                        ctx.lineWidth = 3;
-                        ctx.beginPath(); ctx.arc(fishPlayer.x, fishPlayer.y, fishPlayer.radius + 10, 0, Math.PI*2); ctx.stroke();
-                        ctx.restore();
-                    } else {
-                        // On se fait manger
-                        fishGameActive = false;
-                        handleGameOver(fishScore, "MANGÉ PAR UN " + e.typeName.toUpperCase());
-                        return;
-                    }
-                }
-
-                // Hors écran
-                if (e.x < -200 || e.x > width + 200) enemies.splice(i, 1);
-            }
-
-            // UI Update
-            document.getElementById('score-display').innerText = 'MASSE: ' + Math.floor(fishScore);
-            
-            animationId = requestAnimationFrame(animateFish);
-        }
-
-        // Classes Océan
-
+        // Classes Jeu Poisson
         class Plankton {
-            constructor() {
-                this.x = Math.random() * width;
-                this.y = Math.random() * height;
-                this.size = 2 + Math.random() * 3;
-                this.color = `hsl(${Math.random()*60 + 100}, 100%, 70%)`; // Vert/Jaune fluo
-            }
-            draw() {
-                ctx.fillStyle = this.color;
-                ctx.shadowBlur = 10;
-                ctx.shadowColor = this.color;
-                ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI*2); ctx.fill();
-                ctx.shadowBlur = 0;
-            }
+            constructor() { this.x = Math.random() * width; this.y = Math.random() * height; this.size = 2 + Math.random() * 3; this.color = `hsl(${Math.random()*60 + 100}, 100%, 70%)`; }
+            draw() { ctx.fillStyle = this.color; ctx.shadowBlur = 10; ctx.shadowColor = this.color; ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI*2); ctx.fill(); ctx.shadowBlur = 0; }
         }
-
         class Bubble {
-            constructor() {
-                this.reset();
-            }
-            reset() {
-                this.x = Math.random() * width;
-                this.y = height + Math.random() * 100;
-                this.size = 2 + Math.random() * 5;
-                this.speed = 1 + Math.random() * 2;
-            }
-            update() {
-                this.y -= this.speed;
-                if (this.y < -20) this.reset();
-            }
-            draw() {
-                ctx.strokeStyle = 'rgba(255,255,255,0.1)';
-                ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI*2); ctx.stroke();
-            }
+            constructor() { this.reset(); }
+            reset() { this.x = Math.random() * width; this.y = height + Math.random() * 100; this.size = 2 + Math.random() * 5; this.speed = 1 + Math.random() * 2; }
+            update() { this.y -= this.speed; if (this.y < -20) this.reset(); }
+            draw() { ctx.strokeStyle = 'rgba(255,255,255,0.1)'; ctx.beginPath(); ctx.arc(this.x, this.y, this.size, 0, Math.PI*2); ctx.stroke(); }
         }
-
         class EnemyFish {
             constructor(playerRadius) {
-                // Spawn sur un côté
-                this.side = Math.random() > 0.5 ? -1 : 1; // -1 left, 1 right
-                this.x = this.side === -1 ? -100 : width + 100;
-                this.y = Math.random() * height;
-                
-                // Taille relative au joueur pour équilibrer la difficulté
-                // 30% de chance d'être plus petit (proie), 70% plus gros (danger)
+                this.side = Math.random() > 0.5 ? -1 : 1; this.x = this.side === -1 ? -100 : width + 100; this.y = Math.random() * height;
                 let sizeMult = (Math.random() < 0.4) ? 0.5 + Math.random()*0.4 : 1.2 + Math.random()*2;
                 this.radius = Math.max(10, playerRadius * sizeMult);
-                
-                // Types visuels
-                if (this.radius > 80) { this.type = 'shark'; this.typeName = 'Requin'; }
-                else if (this.radius > 50) { this.type = 'puffer'; this.typeName = 'Gros Poisson'; }
-                else { this.type = 'fish'; this.typeName = 'Poisson'; }
-
-                // Vitesse : les petits sont rapides, les gros lents (sauf requins)
-                this.speed = (2 + Math.random() * 2); 
-                if (this.type === 'shark') this.speed += 2;
-
-                this.angle = this.side === -1 ? 0 : Math.PI; // Direction
+                if (this.radius > 80) { this.type = 'shark'; this.typeName = 'Requin'; } else if (this.radius > 50) { this.type = 'puffer'; this.typeName = 'Gros Poisson'; } else { this.type = 'fish'; this.typeName = 'Poisson'; }
+                this.speed = (2 + Math.random() * 2); if (this.type === 'shark') this.speed += 2;
+                this.angle = this.side === -1 ? 0 : Math.PI;
             }
-            update() {
-                if (this.side === -1) this.x += this.speed;
-                else this.x -= this.speed;
-            }
+            update() { if (this.side === -1) this.x += this.speed; else this.x -= this.speed; }
         }
-
         function drawFish(x, y, radius, angle, isPlayer, time, type='fish') {
-            ctx.save();
-            ctx.translate(x, y);
-            
-            // Si le poisson va vers la gauche, on le retourne pour qu'il ne nage pas sur le dos
-            // Mais l'angle gère déjà la rotation. Si l'angle est > 90deg ou < -90deg...
-            // Pour simplifier : on dessine toujours vers la droite, et 'angle' fait le reste.
-            // Si l'angle nous met "la tête en bas", on flip Y.
-            ctx.rotate(angle);
-            if (Math.abs(angle) > Math.PI/2) {
-                ctx.scale(1, -1);
-            }
-
-            // Wiggle animation (queue qui bouge)
+            ctx.save(); ctx.translate(x, y); ctx.rotate(angle); if (Math.abs(angle) > Math.PI/2) ctx.scale(1, -1);
             let wiggle = Math.sin(time * 0.01) * (radius * 0.2);
-
             if (isPlayer) {
-                // Style Joueur (Orange Nemo)
-                ctx.fillStyle = '#fb923c';
-                // Corps
-                ctx.beginPath();
-                ctx.ellipse(0, 0, radius, radius * 0.6, 0, 0, Math.PI*2);
-                ctx.fill();
-                // Bandes blanches
-                ctx.fillStyle = 'white';
-                ctx.beginPath(); ctx.fillRect(-radius*0.2, -radius*0.5, radius*0.2, radius); ctx.fill();
-                // Queue
-                ctx.fillStyle = '#fb923c';
-                ctx.beginPath(); ctx.moveTo(-radius, 0); 
-                ctx.lineTo(-radius*1.5, -radius*0.6 + wiggle); 
-                ctx.lineTo(-radius*1.5, radius*0.6 + wiggle); 
-                ctx.fill();
-                // Oeil
+                ctx.fillStyle = '#fb923c'; ctx.beginPath(); ctx.ellipse(0, 0, radius, radius * 0.6, 0, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = 'white'; ctx.beginPath(); ctx.fillRect(-radius*0.2, -radius*0.5, radius*0.2, radius); ctx.fill();
+                ctx.fillStyle = '#fb923c'; ctx.beginPath(); ctx.moveTo(-radius, 0); ctx.lineTo(-radius*1.5, -radius*0.6 + wiggle); ctx.lineTo(-radius*1.5, radius*0.6 + wiggle); ctx.fill();
                 ctx.fillStyle = 'white'; ctx.beginPath(); ctx.arc(radius*0.4, -radius*0.2, radius*0.2, 0, Math.PI*2); ctx.fill();
                 ctx.fillStyle = 'black'; ctx.beginPath(); ctx.arc(radius*0.45, -radius*0.2, radius*0.1, 0, Math.PI*2); ctx.fill();
-            
             } else if (type === 'shark') {
-                // Requin (Gris, aileron)
-                ctx.fillStyle = '#64748b';
-                ctx.beginPath();
-                ctx.ellipse(0, 0, radius*1.2, radius*0.5, 0, 0, Math.PI*2);
-                ctx.fill();
-                // Aileron
+                ctx.fillStyle = '#64748b'; ctx.beginPath(); ctx.ellipse(0, 0, radius*1.2, radius*0.5, 0, 0, Math.PI*2); ctx.fill();
                 ctx.beginPath(); ctx.moveTo(0, -radius*0.3); ctx.lineTo(radius*0.5, -radius*0.9); ctx.lineTo(radius*0.8, -radius*0.3); ctx.fill();
-                // Queue
                 ctx.beginPath(); ctx.moveTo(-radius*1.2, 0); ctx.lineTo(-radius*1.8, -radius + wiggle); ctx.lineTo(-radius*1.8, radius + wiggle); ctx.fill();
-                // Oeil méchant
                 ctx.fillStyle = 'white'; ctx.beginPath(); ctx.arc(radius*0.6, -radius*0.15, radius*0.1, 0, Math.PI*2); ctx.fill();
                 ctx.fillStyle = 'red'; ctx.beginPath(); ctx.arc(radius*0.62, -radius*0.15, radius*0.05, 0, Math.PI*2); ctx.fill();
-
             } else {
-                // Poisson standard (Couleur random based on size/radius pseudo-random)
-                ctx.fillStyle = `hsl(${radius * 10}, 70%, 60%)`;
-                ctx.beginPath();
-                ctx.ellipse(0, 0, radius, radius * 0.7, 0, 0, Math.PI*2);
-                ctx.fill();
-                // Queue
+                ctx.fillStyle = `hsl(${radius * 10}, 70%, 60%)`; ctx.beginPath(); ctx.ellipse(0, 0, radius, radius * 0.7, 0, 0, Math.PI*2); ctx.fill();
                 ctx.beginPath(); ctx.moveTo(-radius, 0); ctx.lineTo(-radius*1.4, -radius*0.5 + wiggle); ctx.lineTo(-radius*1.4, radius*0.5 + wiggle); ctx.fill();
-                // Oeil
                 ctx.fillStyle = 'white'; ctx.beginPath(); ctx.arc(radius*0.4, -radius*0.2, radius*0.2, 0, Math.PI*2); ctx.fill();
                 ctx.fillStyle = 'black'; ctx.beginPath(); ctx.arc(radius*0.45, -radius*0.2, radius*0.1, 0, Math.PI*2); ctx.fill();
             }
-
             ctx.restore();
         }
 
