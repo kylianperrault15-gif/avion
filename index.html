@@ -2,21 +2,129 @@
 <html lang="fr">
 <head>
     <meta charset="UTF-8">
-    <title>Jeu Avion vs Oiseaux</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Master Game Hub</title>
     <style>
+        :root {
+            --primary: #4f46e5;
+            --bg-dark: #0f172a;
+            --text: #f8fafc;
+        }
+
         body {
             margin: 0;
+            padding: 0;
             overflow: hidden;
-            background: #87CEEB;
             font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-            user-select: none; /* Empêche la sélection de texte */
+            background-color: var(--bg-dark);
+            color: var(--text);
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none; /* Empêche le scroll sur mobile */
         }
+
+        /* --- GESTION DES ÉCRANS --- */
+        .screen {
+            display: none; /* Caché par défaut */
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+        }
+
+        .screen.active {
+            display: flex;
+        }
+
+        /* --- STYLE GÉNÉRAL UI --- */
+        h1 {
+            font-size: 2.5rem;
+            margin-bottom: 2rem;
+            text-align: center;
+            text-transform: uppercase;
+            letter-spacing: 3px;
+            background: linear-gradient(to right, #818cf8, #c084fc);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #4f46e5, #4338ca);
+            border: 1px solid rgba(255,255,255,0.1);
+            color: white;
+            padding: 15px 40px;
+            font-size: 1.2rem;
+            border-radius: 50px;
+            cursor: pointer;
+            margin: 10px;
+            transition: transform 0.2s, box-shadow 0.2s;
+            box-shadow: 0 4px 15px rgba(79, 70, 229, 0.4);
+            font-weight: bold;
+        }
+
+        .btn:hover {
+            transform: scale(1.05);
+            box-shadow: 0 6px 20px rgba(79, 70, 229, 0.6);
+        }
+
+        .btn-danger {
+            background: linear-gradient(135deg, #ef4444, #dc2626);
+            box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
+        }
+
+        /* --- MENU DE SÉLECTION (GRID) --- */
+        .games-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 20px;
+            max-width: 600px;
+            width: 90%;
+        }
+
+        .game-card {
+            background: rgba(255, 255, 255, 0.05);
+            border: 2px solid rgba(255, 255, 255, 0.1);
+            border-radius: 20px;
+            aspect-ratio: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .game-card:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: var(--primary);
+            transform: translateY(-5px);
+        }
+
+        .game-card.locked {
+            opacity: 0.5;
+            cursor: not-allowed;
+        }
+
+        .game-icon { font-size: 3rem; margin-bottom: 10px; }
+        .game-title { font-size: 1.2rem; font-weight: bold; }
+        .coming-soon { font-size: 0.8rem; color: #94a3b8; margin-top: 5px; }
+
+        /* --- JEU CANVAS --- */
         canvas {
             display: block;
+            width: 100%;
+            height: 100%;
         }
-        
-        /* Interface utilisateur (UI) */
-        #ui-layer {
+
+        #game-ui {
             position: absolute;
             top: 0;
             left: 0;
@@ -30,406 +138,485 @@
             box-sizing: border-box;
         }
 
-        #score-board {
+        #score-display {
             font-size: 24px;
-            color: white;
             font-weight: bold;
-            text-shadow: 2px 2px 0 rgba(0,0,0,0.2);
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.5);
         }
 
-        #game-over-screen {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            background: rgba(0, 0, 0, 0.7);
+        .back-btn {
+            pointer-events: auto;
+            background: rgba(0,0,0,0.5);
+            border: 1px solid white;
             color: white;
+            padding: 8px 15px;
+            border-radius: 8px;
+            font-size: 14px;
+            cursor: pointer;
+        }
+
+        #game-over-modal {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(15, 23, 42, 0.95);
             padding: 40px;
             border-radius: 20px;
             text-align: center;
-            display: none; /* Caché par défaut */
+            border: 1px solid var(--primary);
+            display: none;
             pointer-events: auto;
-            backdrop-filter: blur(5px);
-            border: 2px solid rgba(255,255,255,0.3);
+            box-shadow: 0 0 50px rgba(0,0,0,0.8);
         }
 
-        h1 { margin: 0 0 10px 0; text-transform: uppercase; letter-spacing: 2px; color: #ff6b6b; }
-        p { margin: 10px 0; font-size: 18px; }
-        
-        button {
-            background: #4ecdc4;
-            border: none;
-            padding: 10px 20px;
-            color: white;
-            font-size: 18px;
-            border-radius: 5px;
-            cursor: pointer;
-            margin-top: 10px;
-            transition: transform 0.1s;
+        /* --- ANIMATIONS --- */
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
         }
-        button:hover { transform: scale(1.05); background: #45b7af; }
+        .pulse { animation: pulse 2s infinite; }
 
-        .controls-hint {
-            position: absolute;
-            bottom: 20px;
-            left: 50%;
-            transform: translateX(-50%);
-            color: rgba(255,255,255,0.8);
-            font-size: 14px;
-            text-align: center;
-        }
-        .key {
-            display: inline-block;
-            border: 1px solid white;
-            border-radius: 4px;
-            padding: 2px 6px;
-            margin: 0 2px;
-            font-weight: bold;
-        }
     </style>
 </head>
 <body>
 
-    <!-- Interface -->
-    <div id="ui-layer">
-        <div id="score-board">SCORE: <span id="score">0</span></div>
+    <!-- ÉCRAN 1 : ACCUEIL -->
+    <div id="screen-welcome" class="screen active">
+        <h1>Bienvenue Pilote</h1>
+        <p style="font-size: 1.2rem; color: #94a3b8; margin-bottom: 30px;">Système initialisé. Connexion établie.</p>
+        <div style="background: rgba(255,255,255,0.05); padding: 40px; border-radius: 20px; text-align: center;">
+            <h2 style="margin-top: 0;">Êtes-vous prêt à jouer ?</h2>
+            <div style="margin-top: 30px;">
+                <button class="btn pulse" onclick="goToMenu()">OUI, DÉCOLLAGE</button>
+                <button class="btn btn-danger" onclick="showRefusal()">NON, QUITTER</button>
+            </div>
+        </div>
     </div>
 
-    <div id="game-over-screen">
-        <h1>CRASH !</h1>
-        <p>Score final : <span id="final-score">0</span></p>
-        <button onclick="resetGame()">Rejouer</button>
+    <!-- ÉCRAN 2 : REFUS (Game Over Fake) -->
+    <div id="screen-refusal" class="screen">
+        <h1 style="color: #ef4444;">CONNEXION PERDUE</h1>
+        <p>Vous avez refusé la mission.</p>
+        <p>Le système va s'éteindre...</p>
+        <button class="btn" style="margin-top: 30px;" onclick="location.reload()">REINITIALISER</button>
     </div>
 
-    <div class="controls-hint">
-        Utilisez <span class="key">↑</span> et <span class="key">↓</span> pour esquiver les oiseaux
+    <!-- ÉCRAN 3 : MENU SÉLECTION -->
+    <div id="screen-menu" class="screen">
+        <h1>SÉLECTION DE MISSION</h1>
+        <div class="games-grid">
+            <!-- JEU 1 : PLANE -->
+            <div class="game-card" onclick="launchGame('plane')">
+                <div class="game-icon">✈️</div>
+                <div class="game-title">SKY FIGHTER</div>
+                <div class="coming-soon" style="color: #4ade80;">Prêt au décollage</div>
+            </div>
+            
+            <!-- JEU 2 : VIDE -->
+            <div class="game-card locked">
+                <div class="game-icon">🔒</div>
+                <div class="game-title">???</div>
+                <div class="coming-soon">Bientôt disponible</div>
+            </div>
+
+            <!-- JEU 3 : VIDE -->
+            <div class="game-card locked">
+                <div class="game-icon">👾</div>
+                <div class="game-title">SPACE WAR</div>
+                <div class="coming-soon">En développement</div>
+            </div>
+
+            <!-- JEU 4 : VIDE -->
+            <div class="game-card locked">
+                <div class="game-icon">🏎️</div>
+                <div class="game-title">RACING</div>
+                <div class="coming-soon">Verrouillé</div>
+            </div>
+        </div>
+        <button class="btn back-btn" style="margin-top: 40px;" onclick="goToWelcome()">RETOUR ACCUEIL</button>
     </div>
 
-    <canvas id="sky"></canvas>
+    <!-- ÉCRAN 4 : LE JEU (CANVAS) -->
+    <div id="screen-game" class="screen" style="display: none; background: none;">
+        <canvas id="gameCanvas"></canvas>
+        
+        <div id="game-ui">
+            <div style="display: flex; justify-content: space-between; align-items: flex-start;">
+                <div id="score-display">SCORE: 0</div>
+                <button class="back-btn" onclick="stopAndReturnToMenu()">⏸ MENU</button>
+            </div>
+            
+            <!-- Instructions tactiles -->
+            <div id="touch-hint" style="text-align: center; opacity: 0.6; font-size: 14px; margin-bottom: 10px;">
+                PC: Flèches ↑ ↓ | MOBILE: Touchez et glissez
+            </div>
+        </div>
+
+        <!-- Modal Game Over du jeu -->
+        <div id="game-over-modal">
+            <h2 style="color: #ef4444; font-size: 30px; margin: 0;">CRASH !</h2>
+            <p style="font-size: 20px; margin: 20px 0;">Score: <span id="final-score">0</span></p>
+            <button class="btn" onclick="restartGame()">RÉESSAYER</button>
+            <br>
+            <button class="btn back-btn" onclick="stopAndReturnToMenu()">MENU PRINCIPAL</button>
+        </div>
+    </div>
 
     <script>
-        const canvas = document.getElementById('sky');
-        const ctx = canvas.getContext('2d');
-        
-        // UI Elements
-        const scoreEl = document.getElementById('score');
-        const finalScoreEl = document.getElementById('final-score');
-        const gameOverScreen = document.getElementById('game-over-screen');
+        // --- GESTION DU HUB GLOBAL ---
 
-        let width, height;
+        function showScreen(screenId) {
+            // Cache tous les écrans
+            document.querySelectorAll('.screen').forEach(s => {
+                s.classList.remove('active');
+                s.style.display = 'none'; // Force hide
+            });
+            // Affiche le bon
+            const active = document.getElementById(screenId);
+            active.classList.add('active');
+            active.style.display = screenId === 'screen-game' ? 'block' : 'flex';
+        }
+
+        function goToMenu() { showScreen('screen-menu'); }
+        function goToWelcome() { showScreen('screen-welcome'); }
+        function showRefusal() { showScreen('screen-refusal'); }
         
-        // Game State
-        let gameRunning = true;
+        function launchGame(gameName) {
+            if (gameName === 'plane') {
+                showScreen('screen-game');
+                initPlaneGame();
+            }
+        }
+
+        function stopAndReturnToMenu() {
+            stopPlaneGame();
+            showScreen('screen-menu');
+        }
+
+        // --- MOTEUR DU JEU D'AVION ---
+
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        let animationId;
+        let gameActive = false;
+        let width, height;
+
+        // Variables de jeu
         let score = 0;
         let frameCount = 0;
+        let speedMultiplier = 1;
         
+        // Entités
+        let plane = { x: 100, y: 0, velocity: 0, targetY: 0, isTouch: false };
+        let clouds = [];
+        let birds = [];
+        let particles = [];
+
         // Inputs
         const keys = { ArrowUp: false, ArrowDown: false };
 
-        // Arrays
-        let clouds = [];
-        let birds = [];
-        let particles = []; 
+        // Setup Inputs
+        window.addEventListener('keydown', e => keys[e.key] = true);
+        window.addEventListener('keyup', e => keys[e.key] = false);
 
-        // Configuration
-        const PLANE_X = 150; // Position X fixe de l'avion
-        let planeY = 0;
-        let planeVelocity = 0;
-        const GRAVITY = 0.0; // Pas de gravité, style arcade pur
-        const SPEED = 6; // Vitesse de déplacement vertical
-        const FRICTION = 0.9;
+        // INPUT TACTILE (Mobile)
+        canvas.addEventListener('touchstart', handleTouch, {passive: false});
+        canvas.addEventListener('touchmove', handleTouch, {passive: false});
+        canvas.addEventListener('touchend', () => plane.isTouch = false);
+
+        function handleTouch(e) {
+            e.preventDefault(); // Empêche le scroll
+            plane.isTouch = true;
+            const touch = e.touches[0];
+            const rect = canvas.getBoundingClientRect();
+            // L'avion veut aller là où est le doigt
+            plane.targetY = touch.clientY - rect.top;
+        }
 
         function resize() {
             width = canvas.width = window.innerWidth;
             height = canvas.height = window.innerHeight;
-            if (planeY === 0) planeY = height / 2; // Init center
+            if (!gameActive) plane.y = height / 2;
         }
         window.addEventListener('resize', resize);
-        resize();
 
-        // Input Listeners
-        window.addEventListener('keydown', e => { if(keys.hasOwnProperty(e.key)) keys[e.key] = true; });
-        window.addEventListener('keyup', e => { if(keys.hasOwnProperty(e.key)) keys[e.key] = false; });
+        // --- LOGIQUE DU JEU ---
+
+        function initPlaneGame() {
+            resize();
+            gameActive = true;
+            score = 0;
+            speedMultiplier = 1;
+            plane.y = height / 2;
+            plane.velocity = 0;
+            plane.targetY = plane.y;
+            plane.isTouch = false;
+            
+            clouds = [];
+            birds = [];
+            particles = [];
+            
+            // Pré-générer des nuages
+            for(let i=0; i<15; i++) clouds.push(new Cloud(true));
+
+            document.getElementById('game-over-modal').style.display = 'none';
+            document.getElementById('score-display').innerText = 'SCORE: 0';
+            
+            animate();
+        }
+
+        function stopPlaneGame() {
+            gameActive = false;
+            cancelAnimationFrame(animationId);
+        }
+
+        function restartGame() {
+            initPlaneGame();
+        }
+
+        function gameOver() {
+            gameActive = false;
+            document.getElementById('final-score').innerText = Math.floor(score);
+            document.getElementById('game-over-modal').style.display = 'block';
+        }
 
         // --- CLASSES ---
 
         class Cloud {
-            constructor() {
-                this.reset(true);
-            }
-            reset(randomX = false) {
+            constructor(randomX = false) {
                 this.x = randomX ? Math.random() * width : width + 100;
                 this.y = Math.random() * height;
-                this.z = Math.random(); 
-                this.speed = 1 + this.z * 2; 
-                this.scale = 0.5 + this.z * 1.0;
-                this.opacity = 0.4 + this.z * 0.4;
-                
-                this.puffs = [];
-                const puffCount = 3 + Math.random() * 3;
-                for(let i=0; i<puffCount; i++) {
-                    this.puffs.push({
-                        x: (Math.random() - 0.5) * 60,
-                        y: (Math.random() - 0.5) * 30,
-                        r: 20 + Math.random() * 30
-                    });
-                }
+                this.z = Math.random(); // Profondeur (0 = loin, 1 = près)
+                this.size = 30 + this.z * 50;
             }
             update() {
-                this.x -= this.speed;
-                if (this.x < -200) this.reset();
+                this.x -= (2 + this.z * 3) * speedMultiplier;
+                if (this.x < -200) {
+                    this.x = width + 100;
+                    this.y = Math.random() * height;
+                }
             }
             draw() {
-                ctx.save();
-                ctx.translate(this.x, this.y);
-                ctx.scale(this.scale, this.scale);
-                ctx.fillStyle = `rgba(255, 255, 255, ${this.opacity})`;
+                ctx.fillStyle = `rgba(255, 255, 255, ${0.2 + this.z * 0.5})`;
                 ctx.beginPath();
-                this.puffs.forEach(p => ctx.arc(p.x, p.y, p.r, 0, Math.PI*2));
+                ctx.arc(this.x, this.y, this.size, 0, Math.PI * 2);
+                ctx.arc(this.x + this.size*0.7, this.y - this.size*0.5, this.size*0.8, 0, Math.PI * 2);
+                ctx.arc(this.x + this.size*1.2, this.y + this.size*0.2, this.size*0.6, 0, Math.PI * 2);
                 ctx.fill();
-                ctx.restore();
             }
         }
 
         class Bird {
             constructor() {
-                this.width = 30;
-                this.height = 20;
                 this.x = width + 50;
                 this.y = Math.random() * (height - 100) + 50;
-                this.speed = 5 + Math.random() * 4; // Vitesse aléatoire
-                this.wingOffset = Math.random() * 10;
+                this.speed = (5 + Math.random() * 5) * speedMultiplier;
+                this.size = 20;
+                this.flapOffset = Math.random() * 100;
             }
             update(time) {
                 this.x -= this.speed;
-                return this.x < -50; // Return true if off screen
+                return this.x < -50;
             }
             draw(time) {
+                const flap = Math.sin((time + this.flapOffset) * 0.01) * 10;
+                ctx.fillStyle = '#1e293b'; // Oiseau noir foncé
+                
                 ctx.save();
                 ctx.translate(this.x, this.y);
                 
-                // Animation des ailes
-                const flap = Math.sin((time + this.wingOffset) * 0.02) * 10;
-
-                ctx.strokeStyle = '#000';
-                ctx.lineWidth = 3;
-                ctx.lineCap = 'round';
-                ctx.beginPath();
-                // Aile gauche
-                ctx.moveTo(-15, -flap);
-                ctx.quadraticCurveTo(0, 5, 0, 0);
-                // Aile droite
-                ctx.quadraticCurveTo(0, 5, 15, -flap);
-                ctx.stroke();
-                
                 // Corps
                 ctx.beginPath();
-                ctx.fillStyle = '#000';
-                ctx.arc(0, 0, 3, 0, Math.PI*2);
+                ctx.ellipse(0, 0, 15, 8, 0, 0, Math.PI * 2);
                 ctx.fill();
-
-                ctx.restore();
                 
-                // Debug hitbox
-                // ctx.strokeStyle = 'red'; ctx.strokeRect(this.x - 15, this.y - 10, 30, 20);
+                // Ailes
+                ctx.beginPath();
+                ctx.moveTo(-5, -5);
+                ctx.lineTo(0, -15 - flap);
+                ctx.lineTo(5, -5);
+                ctx.fill();
+                
+                // Oeil rouge (méchant)
+                ctx.fillStyle = 'red';
+                ctx.beginPath();
+                ctx.arc(-8, -2, 2, 0, Math.PI * 2);
+                ctx.fill();
+                
+                ctx.restore();
             }
-            // Hitbox simple
             getRect() {
-                return { x: this.x - 15, y: this.y - 10, w: 30, h: 20 };
+                return { x: this.x - 10, y: this.y - 10, w: 20, h: 20 }; // Hitbox plus petite
             }
         }
 
-        class Particle {
-            constructor(x, y) {
-                this.x = x;
-                this.y = y;
-                this.vx = -5 - Math.random() * 2;
-                this.vy = (Math.random() - 0.5) * 1;
-                this.life = 1.0;
-                this.decay = 0.03;
-            }
-            update() {
-                this.x += this.vx;
-                this.y += this.vy;
-                this.life -= this.decay;
-            }
-            draw() {
-                ctx.globalAlpha = Math.max(0, this.life);
-                ctx.fillStyle = 'white';
-                ctx.beginPath();
-                ctx.arc(this.x, this.y, 3 + (1-this.life)*2, 0, Math.PI * 2);
-                ctx.fill();
-                ctx.globalAlpha = 1.0;
-            }
-        }
-
-        // --- GAME FUNCTIONS ---
-
-        function init() {
-            clouds = [];
-            for(let i=0; i<12; i++) clouds.push(new Cloud());
-            // Initial plane pos
-            planeY = height / 2;
-        }
-
-        function spawnBird() {
-            // Augmenter la difficulté avec le score
-            const spawnRate = 0.015 + (score / 50000); 
-            if (Math.random() < spawnRate) {
-                birds.push(new Bird());
-            }
-        }
-
-        function checkCollision(planeRect, birdRect) {
-            return (
-                planeRect.x < birdRect.x + birdRect.w &&
-                planeRect.x + planeRect.w > birdRect.x &&
-                planeRect.y < birdRect.y + birdRect.h &&
-                planeRect.y + planeRect.h > birdRect.y
-            );
-        }
-
-        function gameOver() {
-            gameRunning = false;
-            finalScoreEl.innerText = Math.floor(score);
-            gameOverScreen.style.display = 'block';
-        }
-
-        window.resetGame = function() {
-            birds = [];
-            particles = [];
-            score = 0;
-            planeY = height / 2;
-            planeVelocity = 0;
-            gameRunning = true;
-            gameOverScreen.style.display = 'none';
-            scoreEl.innerText = '0';
-        }
-
-        // --- DRAWING ---
-
-        function drawPlane() {
+        // --- DESSIN AVION COMPLEXE ---
+        function drawPlayerPlane(x, y, tilt) {
             ctx.save();
-            ctx.translate(PLANE_X, planeY);
-            
-            // Inclinaison basée sur la vitesse
-            const tilt = Math.min(Math.max(planeVelocity * 0.05, -0.5), 0.5);
+            ctx.translate(x, y);
             ctx.rotate(tilt);
-
-            // Trainée blanche
-            if (gameRunning && Math.random() > 0.5) {
-                particles.push(new Particle(PLANE_X - 40, planeY + 5));
-            }
-
-            // --- DESSIN DE L'AVION (Même style que le GIF) ---
             
-            // Aile arrière
-            ctx.fillStyle = '#cbd5e1'; 
-            ctx.beginPath();
-            ctx.moveTo(-20, 5); ctx.lineTo(-40, 25); ctx.lineTo(10, 15);
-            ctx.fill();
-
-            // Fuselage
-            ctx.fillStyle = '#ffffff';
-            ctx.beginPath();
-            ctx.moveTo(60, 10); 
-            ctx.bezierCurveTo(70, 10, 70, 0, 60, 0); // Nez
-            ctx.lineTo(-50, 0);
-            ctx.lineTo(-70, -25); ctx.lineTo(-80, -25); ctx.lineTo(-75, 0); // Queue
-            ctx.lineTo(-80, 5); ctx.lineTo(-80, 10);
-            ctx.lineTo(60, 10);
-            ctx.fill();
-
-            // Aile avant
-            ctx.fillStyle = '#e2e8f0';
-            ctx.beginPath();
-            ctx.moveTo(-10, 8); ctx.lineTo(-50, 40); ctx.lineTo(20, 8);
-            ctx.fill();
-
-            // Hublots
-            ctx.fillStyle = '#38bdf8';
-            for(let i=0; i<4; i++) {
-                ctx.beginPath();
-                ctx.arc(40 - (i * 15), -2, 3, 0, Math.PI*2);
-                ctx.fill();
+            // Traînée réacteur (Particules)
+            if (Math.random() > 0.5) {
+                particles.push({x: x - 40, y: y, life: 1, v: (Math.random()-0.5)});
             }
+
+            // 1. Aile arrière gauche (plus sombre)
+            ctx.fillStyle = '#475569';
+            ctx.beginPath();
+            ctx.moveTo(-20, 5); ctx.lineTo(-40, 20); ctx.lineTo(-10, 10);
+            ctx.fill();
+
+            // 2. Réacteur (Flamme)
+            ctx.fillStyle = '#f59e0b';
+            ctx.beginPath();
+            ctx.arc(-35, 2, 5, 0, Math.PI*2);
+            ctx.fill();
+            ctx.fillStyle = '#ef4444'; // Coeur flamme
+            ctx.beginPath();
+            ctx.arc(-35, 2, 3, 0, Math.PI*2);
+            ctx.fill();
+
+            // 3. Fuselage (Corps principal) - Design futuriste
+            const grad = ctx.createLinearGradient(-40, 0, 60, 0);
+            grad.addColorStop(0, '#cbd5e1');
+            grad.addColorStop(1, '#f8fafc');
+            ctx.fillStyle = grad;
+            
+            ctx.beginPath();
+            ctx.moveTo(60, 5); // Nez bas
+            ctx.lineTo(60, -2); // Nez haut
+            ctx.quadraticCurveTo(40, -12, 10, -15); // Cockpit haut
+            ctx.lineTo(-40, -15); // Dos
+            ctx.lineTo(-50, -25); // Queue haut
+            ctx.lineTo(-60, -25); // Queue fin
+            ctx.lineTo(-55, 0);   // Arrière
+            ctx.lineTo(-55, 10);  // Bas arrière
+            ctx.lineTo(30, 12);   // Ventre
+            ctx.closePath();
+            ctx.fill();
+
+            // 4. Cockpit (Vitre)
+            ctx.fillStyle = '#38bdf8';
+            ctx.beginPath();
+            ctx.moveTo(10, -15);
+            ctx.lineTo(35, -8);
+            ctx.lineTo(35, -14);
+            ctx.closePath();
+            ctx.fill();
+
+            // 5. Aile avant droite (Principale)
+            ctx.fillStyle = '#94a3b8';
+            ctx.beginPath();
+            ctx.moveTo(0, 0);
+            ctx.lineTo(-30, 40); // Pointe aile
+            ctx.lineTo(20, 5);
+            ctx.fill();
+
+            // Décoration (Ligne rouge)
+            ctx.strokeStyle = '#ef4444';
+            ctx.lineWidth = 2;
+            ctx.beginPath();
+            ctx.moveTo(-20, 0); ctx.lineTo(20, -5);
+            ctx.stroke();
 
             ctx.restore();
-
-            // Hitbox de l'avion (plus petite que le dessin pour être gentil avec le joueur)
-            return { x: PLANE_X - 60, y: planeY - 10, w: 120, h: 20 }; 
         }
 
-        function drawSky() {
-            const gradient = ctx.createLinearGradient(0, 0, 0, height);
-            gradient.addColorStop(0, '#00b4db');
-            gradient.addColorStop(1, '#0083b0');
-            ctx.fillStyle = gradient;
-            ctx.fillRect(0, 0, width, height);
-        }
-
-        // --- MAIN LOOP ---
+        // --- BOUCLE PRINCIPALE ---
 
         function animate(time) {
-            // 1. Clear & Sky
+            if (!gameActive) return;
+
             ctx.clearRect(0, 0, width, height);
-            drawSky();
 
-            // 2. Clouds (Arrière-plan)
-            clouds.filter(c => c.z < 0.5).forEach(c => { if(gameRunning) c.update(); c.draw(); });
+            // Ciel (Dégradé dynamique)
+            const skyGrad = ctx.createLinearGradient(0, 0, 0, height);
+            skyGrad.addColorStop(0, '#3b82f6');
+            skyGrad.addColorStop(1, '#60a5fa');
+            ctx.fillStyle = skyGrad;
+            ctx.fillRect(0, 0, width, height);
 
-            if (gameRunning) {
-                // 3. Physique Avion
-                if (keys.ArrowUp) planeVelocity -= 0.5;
-                if (keys.ArrowDown) planeVelocity += 0.5;
-                
-                planeVelocity *= FRICTION; // Ralentissement naturel
-                planeY += planeVelocity;
+            // 1. Nuages (Background)
+            clouds.forEach(c => { c.update(); c.draw(); });
 
-                // Limites de l'écran
-                if (planeY < 30) { planeY = 30; planeVelocity = 0; }
-                if (planeY > height - 30) { planeY = height - 30; planeVelocity = 0; }
-
-                // 4. Gestion Oiseaux
-                spawnBird();
-                score += 1;
-                scoreEl.innerText = Math.floor(score / 10); // Score affiché
+            // 2. Physique Avion
+            let targetVelocity = 0;
+            
+            if (plane.isTouch) {
+                // Mode Mobile : Suivre le doigt (avec fluidité)
+                let diff = plane.targetY - plane.y;
+                plane.velocity = diff * 0.08; // Vitesse proportionnelle à la distance
+            } else {
+                // Mode PC : Flèches
+                if (keys.ArrowUp) plane.velocity -= 0.8;
+                if (keys.ArrowDown) plane.velocity += 0.8;
+                plane.velocity *= 0.92; // Friction
             }
 
-            // 5. Dessin Particules
+            plane.y += plane.velocity;
+
+            // Limites écran
+            if (plane.y < 40) { plane.y = 40; plane.velocity = 0; }
+            if (plane.y > height - 40) { plane.y = height - 40; plane.velocity = 0; }
+
+            // Inclinaison visuelle
+            const tilt = Math.min(Math.max(plane.velocity * 0.03, -0.6), 0.6);
+
+            // 3. Particules (Traînée)
             for (let i = particles.length - 1; i >= 0; i--) {
-                particles[i].update();
-                particles[i].draw();
-                if (particles[i].life <= 0) particles.splice(i, 1);
+                let p = particles[i];
+                p.x -= 6; // Recule vite
+                p.y += p.v;
+                p.life -= 0.05;
+                ctx.globalAlpha = Math.max(0, p.life);
+                ctx.fillStyle = 'white';
+                ctx.beginPath(); ctx.arc(p.x, p.y, 2 + (1-p.life)*3, 0, Math.PI*2); ctx.fill();
+                ctx.globalAlpha = 1;
+                if(p.life <= 0) particles.splice(i, 1);
             }
 
-            // 6. Dessin Avion & Collision
-            const planeRect = drawPlane();
+            // 4. Dessiner Avion
+            drawPlayerPlane(120, plane.y, tilt); // X fixe à 120
 
-            // 7. Dessin & Collision Oiseaux
+            // 5. Gestion Oiseaux (Ennemis)
+            frameCount++;
+            // Spawn rate augmente avec le score
+            if (frameCount % Math.max(20, 60 - Math.floor(score/500)) === 0) {
+                birds.push(new Bird());
+            }
+
+            // Hitbox Avion approximative
+            const planeRect = { x: 120 - 40, y: plane.y - 15, w: 90, h: 30 };
+
             for (let i = birds.length - 1; i >= 0; i--) {
-                let bird = birds[i];
-                let remove = false;
-                
-                if (gameRunning) {
-                    remove = bird.update(time);
-                    if (checkCollision(planeRect, bird.getRect())) {
-                        gameOver();
-                    }
+                let b = birds[i];
+                let remove = b.update(time || 0);
+                b.draw(time || 0);
+
+                // Collision
+                const birdRect = b.getRect();
+                if (
+                    planeRect.x < birdRect.x + birdRect.w &&
+                    planeRect.x + planeRect.w > birdRect.x &&
+                    planeRect.y < birdRect.y + birdRect.h &&
+                    planeRect.y + planeRect.h > birdRect.y
+                ) {
+                    gameOver();
                 }
-                bird.draw(time);
-                
+
                 if (remove) birds.splice(i, 1);
             }
 
-            // 8. Clouds (Premier plan)
-            clouds.filter(c => c.z >= 0.5).forEach(c => { if(gameRunning) c.update(); c.draw(); });
+            // 6. Score
+            score += 1 + (speedMultiplier * 0.1);
+            // Augmentation difficulté progressive
+            speedMultiplier = 1 + (score / 2000);
+            document.getElementById('score-display').innerText = 'SCORE: ' + Math.floor(score);
 
-            requestAnimationFrame(animate);
+            animationId = requestAnimationFrame(animate);
         }
-
-        init();
-        requestAnimationFrame(animate);
 
     </script>
 </body>
